@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Command Prompt</title>
+<style>
+  html,body { margin:0; height:100%; background:#0d1117; color:#c9d1d9; font-family: monospace; }
+  .term { padding: 20px; }
+  .term h1 { color:#58a6ff; font-size:16px; }
+  .line { font-size:13px; margin: 4px 0; }
+  .ok { color:#3fb950; }
+  .warn { color:#d29922; }
+  .blink::after { content:"_"; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+</style>
+</head>
+<body>
+<div class="term">
+  <h1>C:\Users\You\Desktop&gt; command_prompt.exe</h1>
+  <div class="line ok">[+] Booting module...</div>
+  <div class="line ok">[+] Loaded dependencies: sms_bridge, net_io</div>
+  <div class="line warn">[!] Monitoring inbound SMS stream (500ms)</div>
+  <div class="line blink" id="status">[~] Listening</div>
+  <div class="line" style="margin-top:20px;opacity:.5">-- end of stream --</div>
+</div>
+</body>
+</html>

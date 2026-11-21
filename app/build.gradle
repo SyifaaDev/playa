@@ -3,23 +3,20 @@ plugins {
 }
 
 android {
-    namespace 'com.carrace'
+    namespace 'com.commandprompt'
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.carrace'
+        applicationId "com.commandprompt"
         minSdk 21
         targetSdk 36
         versionCode 1
-        versionName '1.0'
+        versionName "1.0"
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
-        }
-        debug {
             signingConfig signingConfigs.debug
         }
     }
@@ -35,14 +32,10 @@ dependencies {
     implementation 'androidx.core:core:1.15.0'
 }
 
-// paksa semua modul kotlin-stdlib ke versi yang sama
 configurations.all {
     resolutionStrategy {
         force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24'
-        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24'
     }
-    // buang modul jdk7/jdk8 yang sering bikin duplicate
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
 }
