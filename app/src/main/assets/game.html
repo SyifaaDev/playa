@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Car Race Multiplayer</title>
+<style>
+  html,body { margin:0; height:100%; overflow:hidden; background:#111; font-family:"Segoe UI",sans-serif; }
+  canvas { display:block; width:100%; height:100%; }
+  .hud {
+    position:fixed; top:14px; left:14px; right:14px;
+    display:flex; justify-content:space-between; color:#fff; pointer-events:none;
+    text-shadow:0 2px 8px #000;
+  }
+  .hud .box { background:rgba(0,0,0,.4); padding:8px 14px; border-radius:10px; font-size:14px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="box">🏁 Race Mode</div>
+  <div class="box" id="speed">0 km/h</div>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W, H;
+function resize(){ W = c.width = innerWidth; H = c.height = innerHeight; }
+addEventListener('resize', resize); resize();
+
+const road = { speed: 6, offset: 0 };
+const car = { x: 0, y: 0, w: 70, h: 120, speed: 0 };
+const obstacles = [];
+let last = performance.now();
+let score = 0;
+
+function spawn() {
+  obstacles.push({
+    x: 60 + Math.random() * (W - 120),
+    y: -160,
+    w: 60,
+    h: 110
+  });
+}
+
+function loop(t) {
+  const dt = Math.min(40, t - last); last = t;
+  road.offset = (road.offset + road.speed * (1 + car.speed / 120)) % 80;
+
+  ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0, 0, W, H);
+  // road stripes
+  const lane = W / 3;
+  ctx.fillStyle = '#2b2b2b'; ctx.fillRect(lane, 0, lane, H);
+
+  ctx.strokeStyle = '#f6c90e';
+  ctx.lineWidth = 8;
+  for (let y = -80; y < H + 80; y += 80) {
+    ctx.beginPath();
+    ctx.moveTo(lane, y + road.offset);
+    ctx.lineTo(lane, y + road.offset + 40);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(lane * 2, y + road.offset);
+    ctx.lineTo(lane * 2, y + road.offset + 40);
+    ctx.stroke();
+  }
+
+  // obstacles
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const o = obstacles[i];
+    o.y += (4 + car.speed / 30) * (dt / 16);
+    ctx.fillStyle = '#c0392b';
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillRect(o.x + 8, o.y + 8, o.w - 16, 20);
+    if (o.y > H) { obstacles.splice(i, 1); score++; }
+  }
+
+  // player car
+  const cx = W / 2 + car.x;
+  const cy = H - car.h - 40;
+  ctx.fillStyle = '#3498db';
+  ctx.fillRect(cx - car.w / 2, cy, car.w, car.h);
+  ctx.fillStyle = '#5dade2';
+  ctx.fillRect(cx - car.w / 2 + 10, cy + 10, car.w - 20, 30);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(cx - car.w / 2 + 6, cy + car.h - 18, 14, 18);
+  ctx.fillRect(cx + car.w / 2 - 20, cy + car.h - 18, 14, 18);
+
+  document.getElementById('speed').textContent = Math.round(car.speed) + ' km/h';
+
+  requestAnimationFrame(loop);
+}
+
+addEventListener('mousemove', (e) => {
+  car.x = (e.clientX - W / 2) * 0.6;
+});
+addEventListener('touchmove', (e) => {
+  if (e.touches[0]) car.x = (e.touches[0].clientX - W / 2) * 0.6;
+});
+
+setInterval(spawn, 700);
+setInterval(() => { car.speed = Math.min(220, car.speed + 2); }, 500);
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
